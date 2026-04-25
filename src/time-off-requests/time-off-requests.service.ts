@@ -103,7 +103,6 @@ export class TimeOffRequestsService {
             throw new BadRequestException('Only pending requests can be approved');
         }
 
-        // Manager can only approve their team's requests
         if (requestingUser.role === UserRole.MANAGER) {
             const employee = await this.userRepository.findOne({
                 where: { id: request.userId },
@@ -113,7 +112,6 @@ export class TimeOffRequestsService {
             }
         }
 
-        // Deduct balance with optimistic locking
         const balance = await this.balanceRepository.findOne({
             where: {
                 userId: request.userId,
@@ -130,7 +128,7 @@ export class TimeOffRequestsService {
         const previousBalance = Number(balance.balance);
         const newBalance = previousBalance - request.daysRequested;
 
-        // Update balance with version check (optimistic locking)
+        // Optimistic lock check
         const updateResult = await this.balanceRepository
             .createQueryBuilder()
             .update(LeaveBalance)
@@ -150,7 +148,6 @@ export class TimeOffRequestsService {
             );
         }
 
-        // Log the balance change
         await this.syncLogRepository.save({
             type: SyncType.REALTIME,
             userId: request.userId,
