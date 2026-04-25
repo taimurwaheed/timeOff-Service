@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole } from '../entities/user.entity';
 import { LeaveBalance } from '../entities/leave-balance.entity';
+import { HcmMockService } from '../hcm-mock/hcm-mock.service';
 
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {
@@ -12,6 +13,7 @@ export class SeedService implements OnApplicationBootstrap {
         private userRepository: Repository<User>,
         @InjectRepository(LeaveBalance)
         private leaveBalanceRepository: Repository<LeaveBalance>,
+        private hcmMockService: HcmMockService,
     ) { }
 
     async onApplicationBootstrap() {
@@ -23,7 +25,20 @@ export class SeedService implements OnApplicationBootstrap {
             where: { email: 'employee@test.com' },
         });
 
-        if (existingUser) return;
+        if (existingUser) {
+            // Re-seed HCM even if users already exist
+            // (HCM is in-memory and resets on restart)
+            const users = await this.userRepository.find();
+            for (const user of users) {
+                const balance = await this.leaveBalanceRepository.findOne({
+                    where: { userId: user.id },
+                });
+                if (balance) {
+                    this.hcmMockService.seed(user.id, balance.locationId, Number(balance.balance));
+                }
+            }
+            return;
+        }
 
         const hashedPassword = await bcrypt.hash('password123', 10);
 
@@ -55,12 +70,17 @@ export class SeedService implements OnApplicationBootstrap {
         });
         await this.userRepository.save(employee);
 
-        await this.leaveBalanceRepository.save([
+        const balances = await this.leaveBalanceRepository.save([
             { userId: admin.id, locationId: 'LOC001', balance: 20, version: 1 },
             { userId: manager.id, locationId: 'LOC001', balance: 15, version: 1 },
             { userId: employee.id, locationId: 'LOC001', balance: 10, version: 1 },
         ]);
 
+        // Seed HCM mock with same balances
+        for (const balance of balances) {
+            this.hcmMockService.seed(balance.userId, balance.locationId, Number(balance.balance));
+        }
+
         console.log('Database seeded successfully');
     }
-}
+}   
