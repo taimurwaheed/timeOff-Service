@@ -6,6 +6,7 @@ import { TimeOffRequest, RequestStatus } from '../entities/time-off-request.enti
 import { SyncLog, SyncType } from '../entities/sync-log.entity';
 import { User, UserRole } from '../entities/user.entity';
 import { HcmMockService } from '../hcm-mock/hcm-mock.service';
+import { ForbiddenException } from '@nestjs/common';
 
 const adminUser = { userId: 'admin-1', email: 'admin@test.com', role: UserRole.ADMIN };
 
@@ -164,5 +165,31 @@ describe('SyncService', () => {
                 expect.objectContaining({ type: SyncType.BATCH }),
             );
         });
+
+        // ADD THIS BLOCK HERE
+        describe('getSyncLogs', () => {
+            it('admin can get sync logs', async () => {
+                syncLogRepo.find.mockResolvedValue([
+                    { id: 'log-1', type: 'REALTIME', userId: 'emp-1', locationId: 'LOC001' },
+                ]);
+
+                const result = await service.getSyncLogs(adminUser);
+                expect(result).toHaveLength(1);
+                expect(syncLogRepo.find).toHaveBeenCalledWith({
+                    order: { createdAt: 'DESC' },
+                });
+            });
+
+            it('non-admin cannot get sync logs', async () => {
+                await expect(
+                    service.getSyncLogs({ role: UserRole.EMPLOYEE }),
+                ).rejects.toThrow(ForbiddenException);
+
+                await expect(
+                    service.getSyncLogs({ role: UserRole.MANAGER }),
+                ).rejects.toThrow(ForbiddenException);
+            });
+        });
     });
+
 });

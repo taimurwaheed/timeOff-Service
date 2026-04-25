@@ -260,4 +260,137 @@ describe('TimeOff Service E2E', () => {
       expect(['COMMITTED', 'FAILED']).toContain(req.status);
     });
   });
+  // ----------------------------------------------------------------
+  // Flow 6: Manager rejects a request
+  // ----------------------------------------------------------------
+  describe('Flow 6: Manager rejects a request', () => {
+    let requestId: string;
+
+    beforeAll(async () => {
+      // Reset employee balance to 10 via batch sync
+      await request(app.getHttpServer())
+        .post('/sync/batch')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ balances: [{ userId: employeeId, locationId: 'LOC001', balance: 10 }] });
+    });
+
+    it('employee submits a request', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .send({ startDate: '2026-10-01', endDate: '2026-10-02', daysRequested: 1 });
+
+      expect(res.status).toBe(201);
+      requestId = res.body.id;
+    });
+
+    it('manager rejects the request', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${requestId}/reject`)
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('REJECTED');
+    });
+
+    it('balance is unchanged after rejection', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/balances/${employeeId}`)
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(res.status).toBe(200);
+      expect(Number(res.body.balances[0].balance)).toBe(10);
+    });
+  });
+
+  // ----------------------------------------------------------------
+  // Flow 7: Employee cancels a request
+  // ----------------------------------------------------------------
+  describe('Flow 7: Employee cancels a request', () => {
+    let requestId: string;
+
+    it('employee submits a request', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .send({ startDate: '2026-11-01', endDate: '2026-11-02', daysRequested: 1 });
+
+      expect(res.status).toBe(201);
+      requestId = res.body.id;
+    });
+
+    it('employee cancels their own request', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${requestId}/cancel`)
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('CANCELLED');
+    });
+
+    it('cancelled status is distinct from rejected', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/time-off-requests')
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      const cancelled = res.body.find((r: any) => r.id === requestId);
+      const rejected = res.body.filter((r: any) => r.status === 'REJECTED');
+      expect(cancelled.status).toBe('CANCELLED');
+      expect(cancelled.status).not.toBe('REJECTED');
+      expect(rejected.every((r: any) => r.id !== requestId)).toBe(true);
+    });
+  });
+  // ----------------------------------------------------------------
+  // Flow 8: RBAC enforcement
+  // ----------------------------------------------------------------
+  describe('Flow 8: RBAC enforcement', () => {
+    let requestId: string;
+
+    it('employee cannot approve a request', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .send({ startDate: '2026-12-01', endDate: '2026-12-02', daysRequested: 1 });
+
+      expect(createRes.status).toBe(201);
+      requestId = createRes.body.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${requestId}/approve`)
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('employee cannot trigger sync', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/sync/realtime/${employeeId}/LOC001`)
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('employee cannot view all balances', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/balances')
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('manager cannot view sync logs', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/sync/logs')
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('unauthenticated request is rejected', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/time-off-requests');
+
+      expect(res.status).toBe(401);
+    });
+  });
 });
