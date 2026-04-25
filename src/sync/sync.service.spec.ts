@@ -27,6 +27,13 @@ const mockRequest = (overrides = {}): any => ({
     ...overrides,
 });
 
+const mockQueryBuilder = (affected = 1) => ({
+    update: jest.fn().mockReturnThis(),
+    set: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    execute: jest.fn().mockResolvedValue({ affected }),
+});
+
 describe('SyncService', () => {
     let service: SyncService;
     let balanceRepo: any;
@@ -35,7 +42,12 @@ describe('SyncService', () => {
     let hcmMockService: any;
 
     beforeEach(async () => {
-        balanceRepo = { findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
+        balanceRepo = {
+            findOne: jest.fn(),
+            save: jest.fn(),
+            create: jest.fn(),
+            createQueryBuilder: jest.fn(),
+        };
         requestRepo = { find: jest.fn(), save: jest.fn() };
         syncLogRepo = { save: jest.fn(), find: jest.fn() };
         hcmMockService = { getBalance: jest.fn() };
@@ -58,13 +70,13 @@ describe('SyncService', () => {
         it('updates local balance when HCM has a different value', async () => {
             hcmMockService.getBalance.mockReturnValue({ balance: 15 });
             balanceRepo.findOne.mockResolvedValue(mockBalance({ balance: 10 }));
-            balanceRepo.save.mockResolvedValue(mockBalance({ balance: 15 }));
+            balanceRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder(1));
             syncLogRepo.save.mockResolvedValue({});
             requestRepo.find.mockResolvedValue([]);
 
             const result = await service.realtimeSync(adminUser, 'emp-1', 'LOC001');
 
-            expect(balanceRepo.save).toHaveBeenCalled();
+            expect(balanceRepo.createQueryBuilder).toHaveBeenCalled();
             expect(syncLogRepo.save).toHaveBeenCalledWith(
                 expect.objectContaining({ type: SyncType.REALTIME, newBalance: 15 }),
             );
@@ -78,7 +90,7 @@ describe('SyncService', () => {
 
             const result = await service.realtimeSync(adminUser, 'emp-1', 'LOC001');
 
-            expect(balanceRepo.save).not.toHaveBeenCalled();
+            expect(balanceRepo.createQueryBuilder).not.toHaveBeenCalled();
             expect(syncLogRepo.save).not.toHaveBeenCalled();
             expect(result.requestsFailed).toBe(0);
         });
@@ -86,7 +98,7 @@ describe('SyncService', () => {
         it('marks pending requests as FAILED when new balance is lower than daysRequested', async () => {
             hcmMockService.getBalance.mockReturnValue({ balance: 3 });
             balanceRepo.findOne.mockResolvedValue(mockBalance({ balance: 10 }));
-            balanceRepo.save.mockResolvedValue({});
+            balanceRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder(1));
             syncLogRepo.save.mockResolvedValue({});
             requestRepo.find.mockResolvedValue([mockRequest({ daysRequested: 8 })]);
             requestRepo.save.mockResolvedValue({});
@@ -105,7 +117,7 @@ describe('SyncService', () => {
             balanceRepo.findOne
                 .mockResolvedValueOnce(mockBalance({ balance: 10 }))
                 .mockResolvedValueOnce(mockBalance({ balance: 15 }));
-            balanceRepo.save.mockResolvedValue({});
+            balanceRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder(1));
             syncLogRepo.save.mockResolvedValue({});
             requestRepo.find.mockResolvedValue([]);
 
@@ -121,7 +133,7 @@ describe('SyncService', () => {
 
         it('marks pending requests as FAILED when batch lowers balance', async () => {
             balanceRepo.findOne.mockResolvedValue(mockBalance({ balance: 10 }));
-            balanceRepo.save.mockResolvedValue({});
+            balanceRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder(1));
             syncLogRepo.save.mockResolvedValue({});
             requestRepo.find.mockResolvedValue([mockRequest({ daysRequested: 8 })]);
             requestRepo.save.mockResolvedValue({});
@@ -138,7 +150,7 @@ describe('SyncService', () => {
 
         it('logs every changed balance to SyncLog', async () => {
             balanceRepo.findOne.mockResolvedValue(mockBalance({ balance: 10 }));
-            balanceRepo.save.mockResolvedValue({});
+            balanceRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder(1));
             syncLogRepo.save.mockResolvedValue({});
             requestRepo.find.mockResolvedValue([]);
 

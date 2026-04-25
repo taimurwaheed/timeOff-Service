@@ -14,7 +14,7 @@ import { LeaveBalance } from '../entities/leave-balance.entity';
         TypeOrmModule.forFeature([User, LeaveBalance]),
         PassportModule,
         JwtModule.register({
-            secret: 'timeoff_secret_key',
+            secret: process.env.JWT_SECRET ?? 'timeoff_secret_key',
             signOptions: { expiresIn: '24h' },
         }),
     ],

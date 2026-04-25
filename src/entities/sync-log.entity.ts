@@ -16,6 +16,9 @@ export class SyncLog {
     @Column()
     userId: string;
 
+    @Column({ nullable: true })
+    locationId: string;
+
     @Column({ type: 'float' })
     previousBalance: number;
 
