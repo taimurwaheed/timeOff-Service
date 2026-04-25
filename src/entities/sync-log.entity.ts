@@ -16,10 +16,10 @@ export class SyncLog {
     @Column()
     userId: string;
 
-    @Column({ type: 'decimal' })
+    @Column({ type: 'float' })
     previousBalance: number;
 
-    @Column({ type: 'decimal' })
+    @Column({ type: 'float' })
     newBalance: number;
 
     @Column()
