@@ -120,5 +120,25 @@ describe('BalancesService', () => {
                 ),
             ).rejects.toThrow(NotFoundException);
         });
+
+        // ADD THIS BLOCK HERE
+        describe('getAllBalances', () => {
+            it('admin can get all balances', async () => {
+                balanceRepo.find.mockResolvedValue([mockBalance(), mockBalance({ userId: 'user-2' })]);
+
+                const result = await service.getAllBalances({ role: UserRole.ADMIN });
+                expect(result).toHaveLength(2);
+            });
+
+            it('non-admin cannot get all balances', async () => {
+                await expect(
+                    service.getAllBalances({ role: UserRole.EMPLOYEE }),
+                ).rejects.toThrow(ForbiddenException);
+
+                await expect(
+                    service.getAllBalances({ role: UserRole.MANAGER }),
+                ).rejects.toThrow(ForbiddenException);
+            });
+        });
     });
 });
