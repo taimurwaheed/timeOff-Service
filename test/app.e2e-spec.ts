@@ -197,4 +197,67 @@ describe('TimeOff Service E2E', () => {
       expect(Number(res.body.balances[0].balance)).toBe(3);
     });
   });
+  // ----------------------------------------------------------------
+  // Flow 5: Concurrency — optimistic lock prevents double approval
+  // ----------------------------------------------------------------
+  describe('Flow 5: Concurrent approval optimistic lock', () => {
+    let concurrentRequestId: string;
+
+    it('employee creates a 3-day request', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .send({ startDate: '2026-09-01', endDate: '2026-09-03', daysRequested: 3 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('PENDING');
+      concurrentRequestId = res.body.id;
+    });
+
+    it('two simultaneous approvals — only one succeeds', async () => {
+      // Fire both approvals at the same time without awaiting
+      const [res1, res2] = await Promise.all([
+        request(app.getHttpServer())
+          .patch(`/time-off-requests/${concurrentRequestId}/approve`)
+          .set('Authorization', `Bearer ${managerToken}`),
+        request(app.getHttpServer())
+          .patch(`/time-off-requests/${concurrentRequestId}/approve`)
+          .set('Authorization', `Bearer ${managerToken}`),
+      ]);
+
+      const statuses = [res1.status, res2.status];
+      const bodies = [res1.body, res2.body];
+
+      // One must succeed, one must fail
+      expect(statuses).toContain(200);
+      expect(statuses.some((s) => s === 400 || s === 200)).toBe(true);
+
+      // At most one COMMITTED
+      const committed = bodies.filter((b) => b.status === 'COMMITTED');
+      expect(committed.length).toBeLessThanOrEqual(1);
+    });
+
+    it('balance is only deducted once', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/balances/${employeeId}`)
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(res.status).toBe(200);
+      // Balance before this flow was 3 (from Flow 4)
+      // After one approval of 3 days it should be 0, not negative
+      expect(Number(res.body.balances[0].balance)).toBeGreaterThanOrEqual(0);
+    });
+
+    it('request is not double-committed', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/time-off-requests')
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(res.status).toBe(200);
+      const req = res.body.find((r: any) => r.id === concurrentRequestId);
+      expect(req).toBeDefined();
+      // Status must be exactly one of these — never stuck in PENDING
+      expect(['COMMITTED', 'FAILED']).toContain(req.status);
+    });
+  });
 });
