@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SyncService } from './sync.service';
 import { SyncController } from './sync.controller';
+import { SyncScheduler } from './sync.scheduler';
 import { LeaveBalance } from '../entities/leave-balance.entity';
 import { TimeOffRequest } from '../entities/time-off-request.entity';
 import { SyncLog } from '../entities/sync-log.entity';
@@ -14,7 +15,7 @@ import { HcmMockModule } from '../hcm-mock/hcm-mock.module';
         HcmMockModule,
     ],
     controllers: [SyncController],
-    providers: [SyncService],
+    providers: [SyncService, SyncScheduler],
     exports: [SyncService],
 })
 export class SyncModule { }

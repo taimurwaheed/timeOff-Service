@@ -6,6 +6,7 @@ import { TimeOffRequest, RequestStatus } from '../entities/time-off-request.enti
 import { LeaveBalance } from '../entities/leave-balance.entity';
 import { User, UserRole } from '../entities/user.entity';
 import { SyncLog } from '../entities/sync-log.entity';
+import { HcmMockService } from '../hcm-mock/hcm-mock.service'; // ADD THIS
 
 const mockEmployee = (overrides = {}): any => ({
     id: 'emp-1',
@@ -54,6 +55,8 @@ describe('TimeOffRequestsService', () => {
                 { provide: getRepositoryToken(LeaveBalance), useValue: balanceRepo },
                 { provide: getRepositoryToken(User), useValue: userRepo },
                 { provide: getRepositoryToken(SyncLog), useValue: syncLogRepo },
+                { provide: HcmMockService, useValue: { adjust: jest.fn() } }, // ADD THIS
+
             ],
         }).compile();
 
