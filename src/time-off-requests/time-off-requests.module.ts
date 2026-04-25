@@ -1,9 +1,18 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { TimeOffRequestsService } from './time-off-requests.service';
+import { TimeOffRequestsController } from './time-off-requests.controller';
+import { TimeOffRequest } from '../entities/time-off-request.entity';
+import { LeaveBalance } from '../entities/leave-balance.entity';
+import { User } from '../entities/user.entity';
+import { SyncLog } from '../entities/sync-log.entity';
 
 @Module({
-    imports: [],
-    controllers: [],
-    providers: [],
-    exports: [],
+    imports: [
+        TypeOrmModule.forFeature([TimeOffRequest, LeaveBalance, User, SyncLog]),
+    ],
+    controllers: [TimeOffRequestsController],
+    providers: [TimeOffRequestsService],
+    exports: [TimeOffRequestsService],
 })
 export class TimeOffRequestsModule { }
