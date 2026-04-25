@@ -11,7 +11,7 @@ export class LeaveBalance {
     @Column()
     locationId: string;
 
-    @Column({ type: 'decimal', default: 0 })
+    @Column({ type: 'float', default: 0 })
     balance: number;
 
     @Column({ default: 1 })
