@@ -27,11 +27,9 @@ export class SyncService {
             throw new ForbiddenException('Only admins and managers can trigger sync');
         }
 
-        // Pull balance directly from HCM service (in-process)
         const hcmRecord = this.hcmMockService.getBalance(userId, locationId);
         const hcmBalance = hcmRecord.balance;
 
-        // Get local balance
         let local = await this.balanceRepository.findOne({
             where: { userId, locationId },
         });
@@ -45,6 +43,19 @@ export class SyncService {
                 balance: hcmBalance,
                 version: 1,
             });
+            await this.balanceRepository.save(local);
+
+            await this.syncLogRepository.save({
+                type: SyncType.REALTIME,
+                userId,
+                locationId,
+                previousBalance,
+                newBalance: hcmBalance,
+                triggeredBy: `realtime-sync by ${requestingUser.email}`,
+            });
+
+            const requestsFailed = await this.invalidatePendingRequests(userId, locationId, hcmBalance);
+            return { previousBalance, newBalance: hcmBalance, requestsFailed };
         }
 
         // No change — nothing to do
@@ -52,21 +63,34 @@ export class SyncService {
             return { previousBalance, newBalance: hcmBalance, requestsFailed: 0 };
         }
 
-        local.balance = hcmBalance;
-        local.version = (local.version ?? 1) + 1;
-        await this.balanceRepository.save(local);
+        // Optimistic locking update
+        const updateResult = await this.balanceRepository
+            .createQueryBuilder()
+            .update(LeaveBalance)
+            .set({
+                balance: hcmBalance,
+                version: local.version + 1,
+            })
+            .where('id = :id AND version = :version', {
+                id: local.id,
+                version: local.version,
+            })
+            .execute();
 
-        // Log the sync
+        if (updateResult.affected === 0) {
+            return { previousBalance, newBalance: hcmBalance, requestsFailed: 0, skipped: true };
+        }
+
         await this.syncLogRepository.save({
             type: SyncType.REALTIME,
             userId,
+            locationId,
             previousBalance,
             newBalance: hcmBalance,
             triggeredBy: `realtime-sync by ${requestingUser.email}`,
         });
 
         const requestsFailed = await this.invalidatePendingRequests(userId, locationId, hcmBalance);
-
         return { previousBalance, newBalance: hcmBalance, requestsFailed };
     }
 
@@ -105,15 +129,32 @@ export class SyncService {
                 unchanged++;
                 continue;
             } else {
-                local.balance = entry.balance;
-                local.version = (local.version ?? 1) + 1;
-                await this.balanceRepository.save(local);
+                // Optimistic locking on batch update
+                const updateResult = await this.balanceRepository
+                    .createQueryBuilder()
+                    .update(LeaveBalance)
+                    .set({
+                        balance: entry.balance,
+                        version: local.version + 1,
+                    })
+                    .where('id = :id AND version = :version', {
+                        id: local.id,
+                        version: local.version,
+                    })
+                    .execute();
+
+                if (updateResult.affected === 0) {
+                    // Concurrent modification — skip this entry
+                    unchanged++;
+                    continue;
+                }
                 updated++;
             }
 
             await this.syncLogRepository.save({
                 type: SyncType.BATCH,
                 userId: entry.userId,
+                locationId: entry.locationId,
                 previousBalance,
                 newBalance: entry.balance,
                 triggeredBy: `batch-sync by ${requestingUser.email}`,

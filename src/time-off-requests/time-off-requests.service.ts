@@ -151,6 +151,7 @@ export class TimeOffRequestsService {
         await this.syncLogRepository.save({
             type: SyncType.REALTIME,
             userId: request.userId,
+            locationId: request.locationId,
             previousBalance,
             newBalance,
             triggeredBy: `Manager approval by ${requestingUser.email}`,
@@ -210,7 +211,7 @@ export class TimeOffRequestsService {
             throw new BadRequestException('Only pending requests can be cancelled');
         }
 
-        request.status = RequestStatus.REJECTED;
+        request.status = RequestStatus.CANCELLED;
         return this.requestRepository.save(request);
     }
 }

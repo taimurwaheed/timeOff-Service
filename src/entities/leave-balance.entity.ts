@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, UpdateDateColumn, Unique } from 'typeorm';
 
 @Entity('leave_balances')
+@Unique(['userId', 'locationId'])
 export class LeaveBalance {
     @PrimaryGeneratedColumn('uuid')
     id: string;

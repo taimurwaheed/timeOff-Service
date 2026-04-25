@@ -207,14 +207,14 @@ describe('TimeOffRequestsService', () => {
     describe('cancelRequest', () => {
         it('employee can cancel their own pending request', async () => {
             requestRepo.findOne.mockResolvedValue(mockRequest());
-            const cancelled = mockRequest({ status: RequestStatus.REJECTED });
+            const cancelled = mockRequest({ status: RequestStatus.CANCELLED });
             requestRepo.save.mockResolvedValue(cancelled);
 
             const result = await service.cancelRequest(
                 { userId: 'emp-1' },
                 'req-1',
             );
-            expect(result.status).toBe(RequestStatus.REJECTED);
+            expect(result.status).toBe(RequestStatus.CANCELLED);
         });
 
         it('throws 403 when cancelling another users request', async () => {

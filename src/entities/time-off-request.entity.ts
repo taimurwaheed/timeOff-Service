@@ -3,8 +3,9 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 export enum RequestStatus {
     PENDING = 'PENDING',
     APPROVED = 'APPROVED',
-    REJECTED = 'REJECTED',
     COMMITTED = 'COMMITTED',
+    REJECTED = 'REJECTED',
+    CANCELLED = 'CANCELLED',
     FAILED = 'FAILED',
 }
 

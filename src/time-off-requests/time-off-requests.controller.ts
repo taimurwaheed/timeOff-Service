@@ -1,15 +1,7 @@
-import {
-    Controller,
-    Get,
-    Post,
-    Patch,
-    Body,
-    Param,
-    UseGuards,
-    Request,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { TimeOffRequestsService } from './time-off-requests.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateTimeOffRequestDto } from './dto/create-time-off-request.dto';
 
 @Controller('time-off-requests')
 @UseGuards(JwtAuthGuard)
@@ -19,11 +11,7 @@ export class TimeOffRequestsController {
     @Post()
     async createRequest(
         @Request() req,
-        @Body() body: {
-            startDate: string;
-            endDate: string;
-            daysRequested: number;
-        },
+        @Body() body: CreateTimeOffRequestDto,
     ) {
         return this.timeOffRequestsService.createRequest(req.user, body);
     }
